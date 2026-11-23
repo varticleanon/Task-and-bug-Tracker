@@ -7,6 +7,11 @@ on:
   pull_request:
     branches: [ main, master ]
 
+# Batalkan run lama yang masih antre supaya job Trivy tidak memindai checkout lama.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
