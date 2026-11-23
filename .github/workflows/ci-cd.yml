@@ -125,6 +125,16 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      # Pastikan node_modules sesuai bun.lock sebelum Trivy memindainya.
+      - name: Install Frontend Dependencies (frozen lockfile)
+        working-directory: ./frontend
+        run: bun install --frozen-lockfile
+
       - name: Trivy filesystem scan (HIGH, CRITICAL)
         uses: aquasecurity/trivy-action@master
         with:
