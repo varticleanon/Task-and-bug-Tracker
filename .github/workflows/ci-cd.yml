@@ -140,6 +140,20 @@ jobs:
         working-directory: ./frontend
         run: bun install --frozen-lockfile
 
+      - name: Diagnose checkout before Trivy
+        run: |
+          echo "HEAD: $(git rev-parse HEAD)"
+          echo "COMMIT_TIME: $(git log -1 --format=%ci)"
+          grep '@angular/' frontend/package.json
+          echo -n "19.2.25 in bun.lock: "; grep -c '19\.2\.25' frontend/bun.lock || true
+          echo -n "20.3.35 in bun.lock: "; grep -c '20\.3\.35' frontend/bun.lock || true
+          bun pm ls --all | grep -E '@angular/(core|common|compiler|router)@' || true
+
+      - name: Guard - no Angular 19.2.25 in lockfile
+        run: |
+          ! grep -q '19\.2\.25' frontend/bun.lock
+          grep -q '20\.3\.35' frontend/package.json
+
       - name: Trivy filesystem scan (HIGH, CRITICAL)
         uses: aquasecurity/trivy-action@master
         with:
