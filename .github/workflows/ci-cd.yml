@@ -49,6 +49,14 @@ jobs:
         working-directory: ./backend
         run: go vet ./...
 
+      # Service PostgreSQL di CI dimulai kosong. Tes integrasi mengakses tabel
+      # users/sessions langsung, jadi skema harus dipasang lebih dulu.
+      - name: Apply Database Migrations
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://tracker_user:tracker_password@localhost:5432/task_bug_tracker?sslmode=disable
+        run: go run ./cmd/migrate
+
       - name: Go Unit / Integration Tests
         working-directory: ./backend
         env:
