@@ -1,0 +1,7 @@
+.danger-panel {
+  border-color: var(--danger-line);
+}
+
+.danger-panel .panel-title {
+  color: var(--danger-text);
+}

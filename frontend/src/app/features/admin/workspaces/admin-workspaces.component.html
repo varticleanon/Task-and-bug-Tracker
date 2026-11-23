@@ -1,0 +1,166 @@
+<div class="page">
+  <div class="page-header">
+    <div class="grow">
+      <h1>Manajemen workspace</h1>
+      <p class="page-subtitle">Kelola seluruh workspace yang ada di aplikasi</p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreateModal()">
+      <app-icon name="plus" [size]="16" />
+      Buat workspace
+    </button>
+  </div>
+
+  @if (errorMessage(); as message) {
+    <app-error-state [message]="message" (retryClicked)="loadWorkspaces()" />
+  }
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat workspace">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else if (workspaces().length === 0) {
+    <app-empty-state
+      icon="folder"
+      title="Belum ada workspace"
+      description="Buat workspace pertama untuk mulai mengelola task dan bug."
+      actionLabel="Buat workspace"
+      (actionClicked)="openCreateModal()"
+    />
+  } @else {
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Nama</th>
+              <th scope="col">Slug</th>
+              <th scope="col">Deskripsi</th>
+              <th scope="col">Status</th>
+              <th scope="col">Dibuat</th>
+              <th scope="col" class="text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (ws of workspaces(); track ws.id) {
+              <tr>
+                <td class="cell-primary" data-label="">{{ ws.name }}</td>
+                <td data-label="Slug"><span class="mono">{{ ws.slug }}</span></td>
+                <td data-label="Deskripsi" class="cell-muted">{{ ws.description || '-' }}</td>
+                <td data-label="Status">
+                  <span class="chip" [class.chip--accent]="!ws.archived_at" [class.chip--quiet]="ws.archived_at">
+                    {{ ws.archived_at ? 'Terarsip' : 'Aktif' }}
+                  </span>
+                </td>
+                <td data-label="Dibuat" class="cell-muted">
+                  {{ ws.created_at | date: 'dd MMM yyyy' }}
+                </td>
+                <td class="cell-actions" data-label="">
+                  <div class="table-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="openWorkspace(ws)"
+                    >
+                      Buka
+                    </button>
+                    @if (ws.archived_at) {
+                      <button
+                        type="button"
+                        class="btn btn-quiet btn-sm"
+                        (click)="restoreWorkspace(ws)"
+                      >
+                        Pulihkan
+                      </button>
+                    } @else {
+                      <button
+                        type="button"
+                        class="btn btn-quiet btn-sm"
+                        (click)="confirmArchive(ws)"
+                      >
+                        Arsip
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  }
+
+  @if (showCreateModal()) {
+    <app-dialog title="Buat workspace baru" (closed)="showCreateModal.set(false)">
+      <div class="form-group">
+        <label class="form-label" for="admin-ws-name">Nama workspace</label>
+        <input
+          id="admin-ws-name"
+          type="text"
+          class="form-control"
+          [(ngModel)]="newWsName"
+          (input)="autoSlug()"
+          maxlength="100"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="admin-ws-slug">Slug URL</label>
+        <input
+          id="admin-ws-slug"
+          type="text"
+          class="form-control mono"
+          [(ngModel)]="newWsSlug"
+          maxlength="50"
+        />
+        <span class="form-hint">Huruf kecil, angka, dan tanda hubung.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="admin-ws-description">Deskripsi</label>
+        <textarea
+          id="admin-ws-description"
+          class="form-control"
+          [(ngModel)]="newWsDescription"
+          rows="3"
+          maxlength="500"
+        ></textarea>
+      </div>
+
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="showCreateModal.set(false)">
+          Batal
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="submitCreateWorkspace()"
+          [disabled]="submitting()"
+        >
+          @if (submitting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          Simpan workspace
+        </button>
+      </div>
+    </app-dialog>
+  }
+
+  @if (pendingArchive(); as target) {
+    <app-dialog title="Arsipkan workspace" (closed)="pendingArchive.set(null)">
+      <p>
+        Mengarsipkan <strong>{{ target.name }}</strong> menjadikan seluruh data di dalamnya
+        hanya bisa dibaca sampai workspace dipulihkan.
+      </p>
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="pendingArchive.set(null)">
+          Batal
+        </button>
+        <button type="button" class="btn btn-danger" (click)="executeArchive()">
+          Arsipkan
+        </button>
+      </div>
+    </app-dialog>
+  }
+</div>

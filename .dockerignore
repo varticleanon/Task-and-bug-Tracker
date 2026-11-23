@@ -1,0 +1,24 @@
+# Node / Bun / Angular
+**/node_modules
+**/dist
+**/.angular
+**/bun.lockb
+
+# Go
+**/bin
+backend/server
+backend/server.log
+backend/uploads
+
+# Docker & git
+**/.git
+**/.dockerignore
+
+# Logs & env
+**/*.log
+.env
+secrets/
+
+# Editor
+.vscode
+.idea

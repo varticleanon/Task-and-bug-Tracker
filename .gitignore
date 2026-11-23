@@ -1,0 +1,33 @@
+# Go
+backend/bin/
+*.exe
+*.test
+*.out
+
+# Node / Bun / Angular
+node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/bun.lockb
+
+# Secrets & Local Envs
+.env
+.env.local
+secrets/
+/run/secrets/
+*.pem
+*.key
+
+# Backup database dan artifact rilis tidak disimpan di repo
+backups/
+*.dump
+release_artifacts/
+
+# Data tooling agen
+.agents/
+
+# Binary, log, dan upload lokal
+backend/server
+backend/uploads/
+*.log
+*.tmp

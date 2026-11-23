@@ -1,0 +1,166 @@
+<div class="page page--narrow">
+  <div class="page-header">
+    <div class="grow">
+      <h1>{{ isEdit() ? 'Edit pekerjaan' : 'Tambah pekerjaan baru' }}</h1>
+      <p class="page-subtitle">
+        {{
+          isEdit()
+            ? 'Perbarui detail pekerjaan ini.'
+            : 'Catat pekerjaan atau bug baru untuk workspace ini.'
+        }}
+      </p>
+    </div>
+    <a [routerLink]="backLink()" class="btn btn-secondary">Batal</a>
+  </div>
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat formulir">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else {
+    <form [formGroup]="itemForm" (ngSubmit)="onSubmit()" class="form-panel">
+      @if (errorMessage(); as message) {
+        <div class="alert alert-error" role="alert">
+          <span class="grow">{{ message }}</span>
+          @if (versionConflict()) {
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              (click)="reloadItem()"
+            >
+              Muat ulang data terbaru
+            </button>
+          }
+        </div>
+      }
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="type">Tipe pekerjaan</label>
+          <select id="type" class="form-control" formControlName="type">
+            <option value="TASK">Task</option>
+            <option value="BUG">Bug</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="priority">Prioritas</label>
+          <select id="priority" class="form-control" formControlName="priority">
+            <option value="LOW">Rendah</option>
+            <option value="MEDIUM">Sedang</option>
+            <option value="HIGH">Tinggi</option>
+            <option value="CRITICAL">Kritis</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="title">Judul pekerjaan</label>
+        <input
+          id="title"
+          type="text"
+          class="form-control"
+          formControlName="title"
+          placeholder="Ringkas dan spesifik, 3 sampai 180 karakter"
+        />
+        @if (titleError(); as message) {
+          <span class="field-error">{{ message }}</span>
+        }
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="description">Deskripsi</label>
+        <textarea
+          id="description"
+          class="form-control"
+          formControlName="description"
+          rows="4"
+          placeholder="Konteks, tujuan, dan kriteria selesai"
+        ></textarea>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="status">Status</label>
+          <select id="status" class="form-control" formControlName="status">
+            <option value="TODO">Belum mulai</option>
+            <option value="IN_PROGRESS">Dikerjakan</option>
+            <option value="IN_REVIEW">Ditinjau</option>
+            <option value="BLOCKED">Terhambat</option>
+            <option value="DONE">Selesai</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="assignee_id">Penanggung jawab (PIC)</label>
+          <select id="assignee_id" class="form-control" formControlName="assignee_id">
+            <option [ngValue]="null">Belum ditugaskan</option>
+            @for (member of members(); track member.user_id) {
+              <option [value]="member.user_id">
+                {{ member.name }} ({{ member.email }})
+              </option>
+            }
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="due_date">Tenggat waktu</label>
+        <input id="due_date" type="date" class="form-control" formControlName="due_date" />
+      </div>
+
+      @if (isBug()) {
+        <section class="bug-fields">
+          <h2 class="bug-title">
+            <app-icon name="bug" [size]="16" />
+            Detail reproduksi bug
+          </h2>
+
+          <div class="form-group">
+            <label class="form-label" for="steps_to_reproduce">Langkah reproduksi</label>
+            <textarea
+              id="steps_to_reproduce"
+              class="form-control"
+              formControlName="steps_to_reproduce"
+              rows="3"
+              placeholder="1. Buka halaman&#10;2. Klik tombol&#10;3. Lihat hasilnya"
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="expected_result">Hasil yang diharapkan</label>
+            <textarea
+              id="expected_result"
+              class="form-control"
+              formControlName="expected_result"
+              rows="2"
+              placeholder="Sistem seharusnya..."
+            ></textarea>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="actual_result">Hasil aktual</label>
+            <textarea
+              id="actual_result"
+              class="form-control"
+              formControlName="actual_result"
+              rows="2"
+              placeholder="Namun yang terjadi..."
+            ></textarea>
+          </div>
+        </section>
+      }
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="submitting()">
+          @if (submitting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          {{ submitting() ? 'Menyimpan...' : isEdit() ? 'Simpan perubahan' : 'Buat pekerjaan' }}
+        </button>
+        <a [routerLink]="backLink()" class="btn btn-secondary">Batal</a>
+      </div>
+    </form>
+  }
+</div>

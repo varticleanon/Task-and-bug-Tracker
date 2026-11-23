@@ -1,0 +1,138 @@
+<div class="page">
+  @if (!workspaceId()) {
+    <div class="empty-state">
+      <app-icon name="workspace" [size]="48" />
+      <h2>Workspace tidak dipilih</h2>
+      <p>Silakan pilih workspace terlebih dahulu dari daftar workspace.</p>
+      <button class="btn btn-primary" (click)="goToWorkspaces()">Kelola Workspace</button>
+    </div>
+  } @else if (loading()) {
+  <div class="skeleton-rows" aria-busy="true" aria-label="Memuat ringkasan">
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row"></div>
+    <div class="skeleton skeleton-row"></div>
+  </div>
+  } @else {
+    @if (error()) {
+      <app-error-state
+        [message]="error() ?? ''"
+        (retryClicked)="loadDashboard(workspaceId())"
+      />
+    } @else {
+      @if (summary(); as s) {
+        @if (isEmpty()) {
+          <app-empty-state
+            icon="dashboard"
+            title="Belum ada data pekerjaan di workspace ini"
+            description="Mulai catat tugas atau bug baru untuk memantau progres tim Anda."
+            actionLabel="Buat pekerjaan pertama"
+            (actionClicked)="goToNewItem()"
+          />
+        } @else {
+          <section class="attention" [class.attention--clear]="!hasAttention()">
+            <div class="attention-head">
+              <h2 class="attention-title">
+                {{ hasAttention() ? 'Perlu perhatian' : 'Tidak ada yang menghambat' }}
+              </h2>
+              <p class="attention-note">
+                {{
+                  hasAttention()
+                    ? 'Item yang menahan progres tim.'
+                    : 'Tidak ada item terhalang atau melewati tenggat.'
+                }}
+              </p>
+            </div>
+
+            <div class="attention-body">
+              <button
+                type="button"
+                class="attention-item"
+                [class.attention-item--danger]="s.blocked > 0"
+                (click)="openItems({ status: 'BLOCKED' })"
+              >
+                <span class="attention-icon"><app-icon name="blocked" [size]="18" /></span>
+                <span class="attention-value mono">{{ s.blocked }}</span>
+                <span class="attention-label">Terhambat</span>
+              </button>
+
+              <button
+                type="button"
+                class="attention-item"
+                [class.attention-item--warn]="s.overdue > 0"
+                (click)="openItems({ overdue: 'true' })"
+              >
+                <span class="attention-icon"><app-icon name="clock" [size]="18" /></span>
+                <span class="attention-value mono">{{ s.overdue }}</span>
+                <span class="attention-label">Lewat tenggat</span>
+              </button>
+
+              <button type="button" class="attention-item" (click)="openAssignedToMe()">
+                <span class="attention-icon"><app-icon name="user" [size]="18" /></span>
+                <span class="attention-value mono">{{ s.assigned_to_me }}</span>
+                <span class="attention-label">Ditugaskan ke saya</span>
+              </button>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Alur pengerjaan</h2>
+              <span class="text-sm text-muted">{{ s.total_open }} item terbuka</span>
+            </div>
+            <div class="panel-body">
+              <div class="pipeline-bar" aria-hidden="true">
+                @for (stage of stages(); track stage.key) {
+                  <span
+                    [class]="'pipeline-segment pipeline-segment--' + stage.tone"
+                    [style.flexGrow]="stage.value"
+                  ></span>
+                }
+              </div>
+
+              <ul class="pipeline-list">
+                @for (stage of stages(); track stage.key) {
+                  <li>
+                    <button
+                      type="button"
+                      class="pipeline-step"
+                      (click)="openItems({ status: stage.key })"
+                    >
+                      <span
+                        [class]="'pipeline-dot pipeline-dot--' + stage.tone"
+                        aria-hidden="true"
+                      ></span>
+                      <span class="pipeline-name">{{ stage.label }}</span>
+                      <span class="pipeline-count mono">{{ stage.value }}</span>
+                    </button>
+                  </li>
+                }
+              </ul>
+            </div>
+          </section>
+
+          <section class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Ikhtisar lain</h2>
+            </div>
+            <div class="panel-body">
+              <dl class="metrics">
+                <div class="metric">
+                  <dt class="metric-label">Task</dt>
+                  <dd class="metric-value mono">{{ s.tasks }}</dd>
+                </div>
+                <div class="metric">
+                  <dt class="metric-label">Bug</dt>
+                  <dd class="metric-value mono">{{ s.bugs }}</dd>
+                </div>
+                <div class="metric">
+                  <dt class="metric-label">Total item</dt>
+                  <dd class="metric-value mono">{{ s.tasks + s.bugs }}</dd>
+                </div>
+              </dl>
+            </div>
+          </section>
+        }
+      }
+    }
+  }
+</div>

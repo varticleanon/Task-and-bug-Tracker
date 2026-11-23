@@ -1,0 +1,246 @@
+<div class="page page--narrow">
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat detail item">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else if (notFound()) {
+    <app-empty-state
+      icon="search"
+      title="Item tidak ditemukan"
+      description="Item mungkin sudah dihapus atau Anda tidak memiliki akses ke workspace ini."
+      actionLabel="Kembali ke daftar item"
+      (actionClicked)="backToItems()"
+    />
+  } @else {
+    @if (errorMessage()) {
+      <app-error-state [message]="errorMessage() ?? ''" (retryClicked)="loadItemDetail()" />
+    } @else {
+      @if (item(); as item) {
+    <div class="detail-header">
+      <div class="detail-heading">
+        <app-chip kind="type" [value]="item.type" />
+        <h1>{{ item.title }}</h1>
+      </div>
+
+      <div class="row wrap">
+        @if (canWrite()) {
+          <a
+            [routerLink]="['/app/w', workspaceId(), 'items', itemId(), 'edit']"
+            class="btn btn-secondary"
+          >
+            <app-icon name="pencil" [size]="16" />
+            Edit
+          </a>
+        }
+        @if (canDelete()) {
+          <button type="button" class="btn btn-danger" (click)="confirmDelete()">
+            <app-icon name="trash" [size]="16" />
+            Hapus
+          </button>
+        }
+      </div>
+    </div>
+
+    <dl class="meta-strip">
+      <div class="meta-cell">
+        <dt>Status</dt>
+        <dd><app-chip kind="status" [value]="item.status" /></dd>
+      </div>
+      <div class="meta-cell">
+        <dt>Prioritas</dt>
+        <dd><app-chip kind="priority" [value]="item.priority" /></dd>
+      </div>
+      <div class="meta-cell">
+        <dt>PIC</dt>
+        <dd>{{ getAssigneeName(item.assignee_id) }}</dd>
+      </div>
+      <div class="meta-cell">
+        <dt>Tenggat</dt>
+        <dd [class.text-danger]="isOverdue(item)">{{ item.due_date || '-' }}</dd>
+      </div>
+      <div class="meta-cell">
+        <dt>Versi</dt>
+        <dd class="mono">v{{ item.version }}</dd>
+      </div>
+    </dl>
+
+    <div class="tabs" role="tablist" aria-label="Isi item">
+      <button
+        type="button"
+        role="tab"
+        id="tab-detail"
+        aria-controls="panel-detail"
+        class="tab-btn"
+        [class.active]="activeTab() === 'detail'"
+        [attr.aria-selected]="activeTab() === 'detail'"
+        (click)="activeTab.set('detail')"
+      >
+        Detail pekerjaan
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-attachments"
+        aria-controls="panel-attachments"
+        class="tab-btn"
+        [class.active]="activeTab() === 'attachments'"
+        [attr.aria-selected]="activeTab() === 'attachments'"
+        (click)="activeTab.set('attachments')"
+      >
+        Lampiran ({{ attachments().length }})
+      </button>
+      <button
+        type="button"
+        role="tab"
+        id="tab-activity"
+        aria-controls="panel-activity"
+        class="tab-btn"
+        [class.active]="activeTab() === 'activity'"
+        [attr.aria-selected]="activeTab() === 'activity'"
+        (click)="activeTab.set('activity')"
+      >
+        Riwayat aktivitas ({{ activities().length }})
+      </button>
+    </div>
+
+    @if (activeTab() === 'detail') {
+      <div
+        class="tab-panel"
+        role="tabpanel"
+        id="panel-detail"
+        aria-labelledby="tab-detail"
+      >
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Deskripsi</h2>
+          </div>
+          <div class="panel-body">
+            <p class="description">{{ item.description || 'Tidak ada deskripsi.' }}</p>
+          </div>
+        </section>
+
+        @if (item.type === 'BUG') {
+          <section class="panel">
+            <div class="panel-header">
+              <h2 class="panel-title">Detail bug</h2>
+            </div>
+            <div class="panel-body stack">
+              <div>
+                <h3 class="sub-title">Langkah reproduksi</h3>
+                <pre class="code-block">{{ item.steps_to_reproduce || '-' }}</pre>
+              </div>
+              <div>
+                <h3 class="sub-title">Hasil yang diharapkan</h3>
+                <pre class="code-block">{{ item.expected_result || '-' }}</pre>
+              </div>
+              <div>
+                <h3 class="sub-title">Hasil aktual</h3>
+                <pre class="code-block">{{ item.actual_result || '-' }}</pre>
+              </div>
+            </div>
+          </section>
+        }
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">Informasi</h2>
+          </div>
+          <div class="panel-body">
+            <dl class="meta-strip meta-strip--plain">
+              <div class="meta-cell">
+                <dt>Dibuat</dt>
+                <dd>{{ item.created_at | date: 'dd MMM yyyy HH:mm' }}</dd>
+              </div>
+              <div class="meta-cell">
+                <dt>Terakhir diperbarui</dt>
+                <dd>{{ item.updated_at | date: 'dd MMM yyyy HH:mm' }}</dd>
+              </div>
+            </dl>
+          </div>
+        </section>
+      </div>
+    }
+
+    @if (activeTab() === 'attachments') {
+      <div
+        class="tab-panel"
+        role="tabpanel"
+        id="panel-attachments"
+        aria-labelledby="tab-attachments"
+      >
+        <app-attachment-gallery
+          [workspaceId]="workspaceId()"
+          [itemId]="itemId()"
+          [attachments]="attachments()"
+          [canUpload]="canWrite()"
+          [canDelete]="canWrite()"
+          (attachmentChanged)="onAttachmentChanged()"
+        />
+      </div>
+    }
+
+    @if (activeTab() === 'activity') {
+      <div
+        class="tab-panel"
+        role="tabpanel"
+        id="panel-activity"
+        aria-labelledby="tab-activity"
+      >
+        @if (activities().length === 0) {
+          <app-empty-state
+            icon="clock"
+            title="Belum ada riwayat aktivitas"
+            description="Perubahan pada item ini akan muncul di sini."
+          />
+        } @else {
+          <ul class="activity-list">
+            @for (act of activities(); track act.id) {
+              <li class="activity-item">
+                <div class="activity-head">
+                  <strong class="activity-actor">{{ act.actor_name }}</strong>
+                  <span class="activity-action">{{ act.action }}</span>
+                  <span class="activity-time mono">
+                    {{ act.created_at | date: 'dd MMM yyyy HH:mm:ss' }}
+                  </span>
+                </div>
+                @if (formatDetails(act.details); as details) {
+                  <pre class="activity-details mono">{{ details }}</pre>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </div>
+      }
+        }
+      }
+    }
+
+  @if (showDeleteConfirm()) {
+    <app-dialog title="Konfirmasi penghapusan" (closed)="cancelDelete()">
+      <p>
+        Apakah Anda yakin ingin menghapus pekerjaan
+        <strong>"{{ item()?.title }}"</strong>? Tindakan ini soft-delete dan tidak
+        dapat dibatalkan dari UI.
+      </p>
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="cancelDelete()">
+          Batal
+        </button>
+        <button
+          type="button"
+          class="btn btn-danger"
+          [disabled]="deleting()"
+          (click)="executeDelete()"
+        >
+          @if (deleting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          {{ deleting() ? 'Menghapus...' : 'Ya, hapus' }}
+        </button>
+      </div>
+    </app-dialog>
+  }
+</div>

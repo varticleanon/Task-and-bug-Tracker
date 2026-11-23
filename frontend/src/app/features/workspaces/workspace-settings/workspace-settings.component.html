@@ -1,0 +1,152 @@
+@if (!workspaceId()) {
+  <div class="page page--narrow">
+    <div class="empty-state">
+      <app-icon name="workspace" [size]="48" />
+      <h2>Workspace tidak dipilih</h2>
+      <p>Silakan pilih workspace terlebih dahulu.</p>
+    </div>
+  </div>
+} @else {
+  <div class="page page--narrow">
+    <div class="page-header">
+    <div class="grow">
+      <h1>Pengaturan workspace</h1>
+      <p class="page-subtitle">Identitas workspace dan tindakan administratif</p>
+    </div>
+  </div>
+
+  @if (!canManage()) {
+    <div class="alert alert-warning" role="alert">
+      Anda tidak memiliki hak akses untuk mengubah pengaturan workspace ini.
+    </div>
+  }
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat pengaturan">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else {
+    <section class="panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Informasi dasar</h2>
+      </div>
+      <div class="panel-body stack">
+        @if (errorMessage(); as message) {
+          <app-error-state [message]="message" />
+        }
+        @if (successMessage(); as message) {
+          <div class="alert alert-success" role="status">{{ message }}</div>
+        }
+
+        <div class="form-group">
+          <label class="form-label" for="settings-name">Nama workspace</label>
+          <input
+            id="settings-name"
+            type="text"
+            class="form-control"
+            [(ngModel)]="name"
+            maxlength="100"
+            [disabled]="!canManage()"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="settings-slug">Slug URL</label>
+          <input
+            id="settings-slug"
+            type="text"
+            class="form-control mono"
+            [(ngModel)]="slug"
+            maxlength="50"
+            [disabled]="!canManage()"
+          />
+          <span class="form-hint">Slug harus unik, huruf kecil dan angka.</span>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="settings-description">Deskripsi</label>
+          <textarea
+            id="settings-description"
+            class="form-control"
+            rows="4"
+            [(ngModel)]="description"
+            maxlength="500"
+            [disabled]="!canManage()"
+          ></textarea>
+        </div>
+
+        @if (canManage()) {
+          <div class="row">
+            <button
+              type="button"
+              class="btn btn-primary"
+              (click)="save()"
+              [disabled]="saving()"
+            >
+              @if (saving()) {
+                <span class="spinner spinner-sm" aria-hidden="true"></span>
+              }
+              {{ saving() ? 'Menyimpan...' : 'Simpan perubahan' }}
+            </button>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="panel danger-panel">
+      <div class="panel-header">
+        <h2 class="panel-title">Zona berbahaya</h2>
+      </div>
+      <div class="panel-body stack">
+        <p class="text-secondary">
+          Mengarsipkan workspace menjadikan seluruh data hanya bisa dibaca sampai dipulihkan.
+          Tindakan ini hanya dapat dilakukan oleh Super Admin.
+        </p>
+        @if (isSuperAdmin()) {
+          @if (ws.currentWorkspace()?.archived_at) {
+            <div class="row">
+              <button type="button" class="btn btn-secondary" (click)="restore()">
+                <app-icon name="refresh" [size]="16" />
+                Pulihkan workspace
+              </button>
+            </div>
+          } @else {
+            <div class="row">
+              <button
+                type="button"
+                class="btn btn-danger"
+                (click)="showArchiveConfirm.set(true)"
+              >
+                <app-icon name="archive" [size]="16" />
+                Arsipkan workspace
+              </button>
+            </div>
+          }
+        } @else {
+          <p class="form-hint">Hanya Super Admin yang dapat mengarsipkan workspace.</p>
+        }
+      </div>
+    </section>
+  }
+
+  @if (showArchiveConfirm()) {
+    <app-dialog title="Arsipkan workspace" (closed)="showArchiveConfirm.set(false)">
+      <p>
+        Mengarsipkan <strong>{{ name() }}</strong> menjadikan seluruh data di dalamnya hanya
+        bisa dibaca sampai workspace dipulihkan.
+      </p>
+      <div dialogFooter>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="showArchiveConfirm.set(false)"
+        >
+          Batal
+        </button>
+        <button type="button" class="btn btn-danger" (click)="archive()">Arsipkan</button>
+      </div>
+    </app-dialog>
+  }
+</div>
+}

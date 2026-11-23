@@ -1,0 +1,252 @@
+<div class="page">
+  <div class="page-header">
+    <div class="grow">
+      <h1>Manajemen pengguna</h1>
+      <p class="page-subtitle">Kelola akun pengguna dan akses Super Admin aplikasi</p>
+    </div>
+    <button type="button" class="btn btn-primary" (click)="openCreateModal()">
+      <app-icon name="plus" [size]="16" />
+      Tambah pengguna
+    </button>
+  </div>
+
+  <section class="toolbar" aria-label="Pencarian pengguna">
+    <label class="sr-only" for="user-search">Cari pengguna</label>
+    <input
+      id="user-search"
+      type="search"
+      class="form-control"
+      placeholder="Cari nama atau email..."
+      [ngModel]="searchQuery()"
+      (ngModelChange)="searchQuery.set($event)"
+      (keyup.enter)="onSearchEnter()"
+    />
+    <button type="button" class="btn btn-secondary" (click)="onSearchEnter()">Cari</button>
+  </section>
+
+  @if (errorMessage(); as message) {
+    <app-error-state [message]="message" (retryClicked)="loadUsers(currentPage())" />
+  }
+
+  @if (successMessage(); as message) {
+    <div class="alert alert-success" role="status">{{ message }}</div>
+  }
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat pengguna">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else if (users().length === 0) {
+    <app-empty-state
+      icon="users"
+      title="Tidak ada data pengguna"
+      description="Coba ubah kata kunci pencarian Anda."
+    />
+  } @else {
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Nama</th>
+              <th scope="col">Email</th>
+              <th scope="col">Role global</th>
+              <th scope="col">Status</th>
+              <th scope="col">Ganti password</th>
+              <th scope="col" class="text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users(); track user.id) {
+              <tr>
+                <td class="cell-primary" data-label="">{{ user.name }}</td>
+                <td data-label="Email">{{ user.email }}</td>
+                <td data-label="Role global">
+                  <app-chip kind="role" [value]="user.global_role" />
+                </td>
+                <td data-label="Status">
+                  <app-chip kind="state" [value]="user.is_active ? 'ACTIVE' : 'INACTIVE'" />
+                </td>
+                <td data-label="Ganti password">
+                  <span class="text-muted">{{ user.must_change_password ? 'Wajib' : 'Tidak' }}</span>
+                </td>
+                <td class="cell-actions" data-label="">
+                  <div class="table-actions">
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="openEditModal(user)"
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      class="btn btn-quiet btn-sm"
+                      (click)="confirmResetPassword(user)"
+                    >
+                      Reset password
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (totalPages() > 1) {
+        <div class="pagination">
+          <div class="pagination-info">
+            Halaman {{ currentPage() }} dari {{ totalPages() }}
+          </div>
+          <div class="pagination-controls">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="currentPage() === 1"
+              (click)="loadUsers(currentPage() - 1)"
+            >
+              Sebelumnya
+            </button>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="currentPage() === totalPages()"
+              (click)="loadUsers(currentPage() + 1)"
+            >
+              Berikutnya
+            </button>
+          </div>
+        </div>
+      }
+    </div>
+  }
+
+  @if (showCreateModal()) {
+    <app-dialog title="Tambah pengguna baru" (closed)="showCreateModal.set(false)">
+      <div class="form-group">
+        <label class="form-label" for="create-email">Email</label>
+        <input
+          id="create-email"
+          type="email"
+          class="form-control"
+          [(ngModel)]="createEmail"
+          placeholder="user@example.com"
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="create-name">Nama lengkap</label>
+        <input
+          id="create-name"
+          type="text"
+          class="form-control"
+          [(ngModel)]="createName"
+          placeholder="Nama pengguna"
+          autocomplete="off"
+        />
+      </div>
+
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="showCreateModal.set(false)">
+          Batal
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="submitCreateUser()"
+          [disabled]="createSubmitting()"
+        >
+          @if (createSubmitting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          Simpan pengguna
+        </button>
+      </div>
+    </app-dialog>
+  }
+
+  @if (selectedUser(); as user) {
+    <app-dialog
+      [title]="'Edit pengguna ' + user.email"
+      (closed)="selectedUser.set(null)"
+    >
+      <div class="form-group">
+        <label class="form-label" for="edit-name">Nama lengkap</label>
+        <input id="edit-name" type="text" class="form-control" [(ngModel)]="editName" />
+      </div>
+
+      <label class="checkbox-label" for="edit-active">
+        <input id="edit-active" type="checkbox" [(ngModel)]="editIsActive" />
+        Akun aktif
+      </label>
+
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="selectedUser.set(null)">
+          Batal
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="submitEditUser()"
+          [disabled]="editSubmitting()"
+        >
+          @if (editSubmitting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          Simpan perubahan
+        </button>
+      </div>
+    </app-dialog>
+  }
+
+  @if (pendingReset(); as user) {
+    <app-dialog title="Reset password" (closed)="pendingReset.set(null)">
+      <p>
+        Password sementara untuk <strong>{{ user.email }}</strong> akan diterbitkan dan hanya
+        ditampilkan sekali. Pengguna harus menggantinya setelah masuk.
+      </p>
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="pendingReset.set(null)">
+          Batal
+        </button>
+        <button type="button" class="btn btn-primary" (click)="resetPassword()">
+          Reset password
+        </button>
+      </div>
+    </app-dialog>
+  }
+
+  @if (tempPasswordNotice(); as password) {
+    <app-dialog title="Password sementara diterbitkan" (closed)="tempPasswordNotice.set(null)">
+      <p class="text-secondary">
+        Salin password berikut dan berikan kepada pengguna melalui kanal yang aman. Password
+        ini hanya ditampilkan sekali dan tidak disimpan di log.
+      </p>
+
+      <div class="temp-password mono">{{ password }}</div>
+
+      @if (copyState() === 'copied') {
+        <p class="text-sm text-accent mt-2">Tersalin ke clipboard.</p>
+      } @else if (copyState() === 'failed') {
+        <p class="text-sm text-danger mt-2">Gagal menyalin, salin manual dari kotak di atas.</p>
+      }
+
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="copyTempPassword()">
+          <app-icon name="copy" [size]="16" />
+          Salin password
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="tempPasswordNotice.set(null)"
+        >
+          Saya sudah menyalinnya
+        </button>
+      </div>
+    </app-dialog>
+  }
+</div>

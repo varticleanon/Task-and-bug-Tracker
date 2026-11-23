@@ -1,0 +1,1623 @@
+openapi: 3.0.3
+info:
+  title: Multi-Workspace Task & Bug Tracker API
+  version: 1.0.0
+  description: RESTful API untuk pelacakan Task dan Bug berbasis multi-workspace.
+  contact:
+    name: Full-Stack Security & Compliance Auditor
+paths:
+  /auth/login:
+    post:
+      summary: User Login
+      operationId: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email pengguna (case-insensitive, dinormalisasi ke huruf kecil di server)
+                password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: Password pengguna (minimal 12 karakter, dihash Argon2id di server)
+      responses:
+        '200':
+          description: Login berhasil, session dibuat, cookie set
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          email:
+                            type: string
+                          name:
+                            type: string
+                          global_role:
+                            type: string
+                          is_active:
+                            type: boolean
+                          must_change_password:
+                            type: boolean
+          headers:
+            Set-Cookie:
+              description: Set-Cookie: __Host-sid=<token>; HttpOnly; Secure; SameSite=Lax; Path=/
+              schema:
+                type: string
+        '400':
+          description: Bad request - invalid payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                      message:
+                        type: string
+        '401':
+          description: Invalid credentials or account disabled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: INVALID_CREDENTIALS
+                      message:
+                        type: string
+        '429':
+          description: Too many requests - rate limited
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    properties:
+                      code:
+                        type: string
+                        example: RATE_LIMIT_EXCEEDED
+                      message:
+                        type: string
+
+  /auth/me:
+    get:
+      summary: Current User Profile
+      operationId: Me
+      summary: Current user, global role, password-change flag
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          email:
+                            type: string
+                          name:
+                            type: string
+                          global_role:
+                            type: string
+                          is_active:
+                            type: boolean
+                          must_change_password:
+                            type: boolean
+        '401':
+          description: Authentication required - valid session needed
+
+  /auth/logout:
+    post:
+      summary: User Logout
+      operationId: Logout
+      summary: Revoke session, delete cookies
+      responses:
+        '204':
+          description: Logout successful, cookies cleared
+        '401':
+          description: Authentication required
+
+  /auth/change-password:
+    post:
+      summary: Change Password
+      operationId: ChangePassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [current_password, new_password]
+              properties:
+                current_password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: Current/password lama
+                new_password:
+                  type: string
+                  minLength: 12
+                  maxLength: 128
+                  description: New password baru (minimal 12 karakter)
+      responses:
+        '200':
+          description: Password successfully updated, session rotated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          email:
+                            type: string
+                          name:
+                            type: string
+                          global_role:
+                            type: string
+                          must_change_password:
+                            type: boolean
+                          message:
+                            type: string
+        '401':
+          description: Authentication required or current password incorrect
+        '400':
+          description: Validation error - new password must be 12-128 characters
+
+  /admin/users:
+    get:
+      summary: List Users
+      operationId: ListUsers
+      summary: Pagination/search active users (Super Admin only)
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        email:
+                          type: string
+                        name:
+                          type: string
+                        global_role:
+                          type: string
+                        is_active:
+                          type: boolean
+        '403':
+          description: Forbidden - Super Admin privileges required
+
+    post:
+      summary: Create User
+      operationId: CreateUser
+      summary: Create user and return temporary password once (Super Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, name]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email pengguna (unik di sistem)
+                name:
+                  type: string
+                  minLength: 1
+                  maxLength: 100
+                  description: Nama lengkap pengguna
+      responses:
+        '201':
+          description: User created, temporary password generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      temporary_password:
+                        type: string
+                        description: Password sementara (tampilkan sekali saja)
+                      user:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                            format: uuid
+                          email:
+                            type: string
+                          name:
+                            type: string
+        '403':
+          description: Forbidden - Super Admin privileges required
+
+  /admin/users/{userId}:
+    patch:
+      summary: Edit User
+      operationId: UpdateUser
+      summary: Edit display name / activate / disable (Super Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  description: Display name baru (opsional)
+                is_active:
+                  type: boolean
+                  description: Aktifkan atau nonaktifkan user (opsional)
+      responses:
+        '200':
+          description: User updated successfully
+        '403':
+          description: Forbidden - Super Admin privileges required
+        '404':
+          description: User not found
+
+    post:
+      summary: Reset User Password
+      operationId: ResetPassword
+      summary: Generate temporary password, revoke sessions (Super Admin only)
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                  format: uuid
+                  description: User ID to reset password for
+      responses:
+        '200':
+          description: Password reset successful
+        '403':
+          description: Forbidden - Super Admin privileges required
+        '404':
+          description: User not found
+
+  /workspaces:
+    get:
+      summary: List Workspaces
+      operationId: ListWorkspaces
+      summary: Accessible workspaces for authenticated user
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        name:
+                          type: string
+                        slug:
+                          type: string
+                        description:
+                          type: string
+                          maxLength: 500
+                        archived_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: Authentication required
+
+    post:
+      summary: Create Workspace
+      operationId: CreateWorkspace
+      summary: Create workspace (creator becomes ADMIN) (Super Admin only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, slug]
+              properties:
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  description: Nama workspace
+                slug:
+                  type: string
+                  minLength: 3
+                  maxLength: 50
+                  pattern: ^[a-z0-9]+(?:-[a-z0-9]+)*$
+                  description: Slug unik (lowercase alnum dan -)
+                description:
+                  type: string
+                  maxLength: 500
+                  description: Deskripsi workspace (opsional)
+      responses:
+        '201':
+          description: Workspace created successfully
+        '400':
+          description: Validation error - invalid name or slug
+        '403':
+          description: Forbidden - Super Admin privileges required
+
+  /workspaces/{workspaceId}:
+    get:
+      summary: Workspace Details
+      operationId: GetWorkspace
+      summary: Accessible member / SA
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      name:
+                        type: string
+                      slug:
+                        type: string
+                      description:
+                        type: string
+                      created_by:
+                        type: string
+                        format: uuid
+                      created_at:
+                        type: string
+                        format: date-time
+                      updated_at:
+                        type: string
+                        format: date-time
+                      archived_at:
+                        type: string
+                        format: date-time
+        '404':
+          description: Workspace not found or access denied
+
+  /workspaces/{workspaceId}/archive:
+    post:
+      summary: Archive Workspace
+      operationId: ArchiveWorkspace
+      summary: Archive workspace (Super Admin only)
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workspace archived successfully
+        '403':
+          description: Forbidden - only Super Admin can archive
+        '404':
+          description: Workspace not found or already archived
+
+  /workspaces/{workspaceId}/restore:
+    post:
+      summary: Restore Workspace
+      operationId: RestoreWorkspace
+      summary: Restore workspace (Super Admin only)
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Workspace restored successfully
+        '403':
+          description: Forbidden - only Super Admin can restore
+        '404':
+          description: Archived workspace not found
+
+  /workspaces/{wid}/members:
+    get:
+      summary: List Members
+      operationId: ListMembers
+      summary: Members for PIC and membership UI (accessible member / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        user_id:
+                          type: string
+                          format: uuid
+                        email:
+                          type: string
+                        name:
+                          type: string
+                        role:
+                          type: string
+                        joined_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: Authentication required
+
+    post:
+      summary: Add Member
+      operationId: AddMember
+      summary: Add existing user by exact email, role (Workspace ADMIN / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, role]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  description: Email pengguna yang sudah terdaftar global
+                role:
+                  type: string
+                  enum: [ADMIN, MEMBER, VIEWER]
+                  description: Role yang akan diberikan
+      responses:
+        '201':
+          description: Member added successfully
+        '400':
+          description: Validation error - invalid role
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '404':
+          description: Active user with exact email not found
+
+    patch:
+      summary: Update Member Role
+      operationId: UpdateMemberRole
+      summary: Change role (Workspace ADMIN / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          description: Target user ID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+                  enum: [ADMIN, MEMBER, VIEWER]
+                  description: Role baru
+      responses:
+        '200':
+          description: Member role updated successfully
+        '400':
+          description: Validation error - invalid role or last admin guard
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient privileges or last workspace admin guard
+        '404':
+          description: Workspace member not found
+
+    delete:
+      summary: Remove Member
+      operationId: RemoveMember
+      summary: Remove member, unassign work items (Workspace ADMIN / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: userId
+          in: path
+          required: true
+          description: Target user ID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Member removed, work items unassigned
+        '400':
+          description: Last workspace admin guard - cannot remove
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient privileges or last workspace admin guard
+        '404':
+          description: Workspace member not found
+
+  /workspaces/{wid}/dashboard:
+    get:
+      summary: Dashboard Summary
+      operationId: GetDashboardSummary
+      summary: Status/type/priority/assignment summary (accessible member / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_open:
+                        type: integer
+                        description: Total item yang statusnya bukan DONE
+                      todo:
+                        type: integer
+                        description: Jumlah item status TODO
+                      in_progress:
+                        type: integer
+                        description: Jumlah item status IN_PROGRESS
+                      blocked:
+                        type: integer
+                        description: Jumlah item status BLOCKED
+                      done:
+                        type: integer
+                        description: Jumlah item status DONE
+                      bugs:
+                        type: integer
+                        description: Jumlah item tipe BUG
+                      tasks:
+                        type: integer
+                        description: Jumlah item tipe TASK
+                      assigned_to_me:
+                        type: integer
+                        description: Item yang di-assign ke user yang login
+                      overdue:
+                        type: integer
+                        description: Item yang due_date-nya sudah lewat dan status bukan DONE
+        '401':
+          description: Authentication required
+
+  /workspaces/{wid}/items:
+    get:
+      summary: List Items
+      operationId: ListItems
+      summary: Filters, pagination, sorting (accessible member / SA)
+      parameters:
+        - name: page
+          in: query
+          required: false
+          default: "1"
+          description: Nomor halaman, mulai dari 1
+          schema:
+            type: integer
+            minimum: 1
+        - name: page_size
+          in: query
+          required: false
+          default: "20"
+          description: Item per halaman, maksimal 100
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+        - name: type
+          in: query
+          required: false
+          description: Filter by type (TASK or BUG)
+          schema:
+            type: string
+            enum: [TASK, BUG]
+        - name: status
+          in: query
+          required: false
+          description: Filter by status
+          schema:
+            type: string
+            enum: [TODO, IN_PROGRESS, BLOCKED, IN_REVIEW, DONE]
+        - name: priority
+          in: query
+          required: false
+          description: Filter by priority
+          schema:
+            type: string
+            enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        - name: assignee_id
+          in: query
+          required: false
+          description: Filter by assignee ID
+          schema:
+            type: string
+            format: uuid
+        - name: unassigned
+          in: query
+          required: false
+          description: Filter unassigned items (true/false)
+          schema:
+            type: boolean
+        - name: search
+          in: query
+          required: false
+          minLength: 2
+          maxLength: 100
+          description: Search in title and description (case-insensitive, minimal 2 karakter)
+        - name: due_before
+          in: query
+          required: false
+          description: Filter items with due_date <= this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - name: due_after
+          in: query
+          required: false
+          description: Filter items with due_date >= this date (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                          format: uuid
+                        type:
+                          type: string
+                          enum: [TASK, BUG]
+                        title:
+                          type: string
+                        status:
+                          type: string
+                        priority:
+                          type: string
+                        assignee_id:
+                          type: string
+                          format: uuid
+                        due_date:
+                          type: string
+                          format: date
+                        created_at:
+                          type: string
+                          format: date-time
+                        updated_at:
+                          type: string
+                          format: date-time
+                  meta:
+                    type: object
+                    properties:
+                      page:
+                        type: integer
+                        minimum: 1
+                      page_size:
+                        type: integer
+                        minimum: 1
+                        maximum: 100
+                      total:
+                        type: integer
+                      total_pages:
+                        type: integer
+        '401':
+          description: Authentication required
+
+    post:
+      summary: Create Item
+      operationId: CreateItem
+      summary: Create task/bug (ADMIN/MEMBER/SA)
+      parameters:
+        - name: workspaceId
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, title]
+              properties:
+                type:
+                  type: string
+                  enum: [TASK, BUG]
+                  description: Tipe item
+                title:
+                  type: string
+                  minLength: 3
+                  maxLength: 180
+                  description: Judul item (3-180 karakter)
+                description:
+                  type: string
+                  description: Deskripsi plain text (max 20.000 karakter)
+                  format: text
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, BLOCKED, IN_REVIEW, DONE]
+                  default: TODO
+                  description: Status item (default: TODO)
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, CRITICAL]
+                  default: MEDIUM
+                  description: Prioritas item (default: MEDIUM)
+                assignee_id:
+                  type: string
+                  format: uuid
+                  description: PIC (wajib member aktif di workspace, opsional)
+                due_date:
+                  type: string
+                  format: date
+                  description: Due date (format YYYY-MM-DD, opsional)
+                steps_to_reproduce:
+                  type: string
+                  description: Steps to reproduce (hanya untuk tipe BUG)
+                expected_result:
+                  type: string
+                  description: Expected result (hanya untuk tipe BUG)
+                actual_result:
+                  type: string
+                  description: Actual result (hanya untuk tipe BUG)
+      responses:
+        '201':
+          description: Item created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      workspace_id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      status:
+                        type: string
+                      priority:
+                        type: string
+                      assignee_id:
+                        type: string
+                        format: uuid
+                      due_date:
+                        type: string
+                        format: date
+                      steps_to_reproduce:
+                        type: string
+                      expected_result:
+                        type: string
+                      actual_result:
+                        type: string
+                      version:
+                        type: integer
+                        default: 1
+                      created_at:
+                        type: string
+                        format: date-time
+                      updated_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: Validation error - malformed input
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '409':
+          description: Version conflict - item already updated by another user
+
+  /workspaces/{wid}/items/{id}:
+    get:
+      summary: Get Item Detail
+      operationId: GetItem
+      summary: Detail item (accessible member / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      workspace_id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      status:
+                        type: string
+                      priority:
+                        type: string
+                      assignee_id:
+                        type: string
+                        format: uuid
+                      due_date:
+                        type: string
+                        format: date
+                      steps_to_reproduce:
+                        type: string
+                      expected_result:
+                        type: string
+                      actual_result:
+                        type: string
+                      created_by:
+                        type: string
+                        format: uuid
+                      updated_by:
+                        type: string
+                        format: uuid
+                      version:
+                        type: integer
+                      created_at:
+                        type: string
+                        format: date-time
+                      updated_at:
+                        type: string
+                        format: date-time
+                      attachments:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id:
+                              type: string
+                              format: uuid
+                            original_filename:
+                              type: string
+                            mime_type:
+                              type: string
+                            byte_size:
+                              type: integer
+                            width:
+                              type: integer
+                            height:
+                              type: integer
+        '404':
+          description: Item not found or access denied
+
+    patch:
+      summary: Update Item
+      operationId: UpdateItem
+      summary: Edit item, requires version (ADMIN/MEMBER/SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [version]
+              properties:
+                version:
+                  type: integer
+                  description: Version saat ini (wajib disertikan untuk menghindari conflict)
+                status:
+                  type: string
+                  enum: [TODO, IN_PROGRESS, BLOCKED, IN_REVIEW, DONE]
+                  description: Status baru (opsional)
+                priority:
+                  type: string
+                  enum: [LOW, MEDIUM, HIGH, CRITICAL]
+                  description: Prioritas baru (opsional)
+                assignee_id:
+                  type: string
+                  format: uuid
+                  description: PIC baru (opsional, null untuk menghapus)
+                due_date:
+                  type: string
+                  format: date
+                  description: Due date baru (opsional)
+                steps_to_reproduce:
+                  type: string
+                  description: Steps to reproduce (hanya untuk tipe BUG, opsional)
+                expected_result:
+                  type: string
+                  description: Expected result (hanya untuk tipe BUG, opsional)
+                actual_result:
+                  type: string
+                  description: Actual result (hanya untuk tipe BUG, opsional)
+      responses:
+        '200':
+          description: Item updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      workspace_id:
+                        type: string
+                        format: uuid
+                      type:
+                        type: string
+                      title:
+                        type: string
+                      description:
+                        type: string
+                      status:
+                        type: string
+                      priority:
+                        type: string
+                      assignee_id:
+                        type: string
+                        format: uuid
+                      due_date:
+                        type: string
+                        format: date
+                      version:
+                        type: integer
+                      updated_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: Validation error - missing version or invalid fields
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '409':
+          description: Version conflict - item telah diupdate oleh pengguna lain
+
+    delete:
+      summary: Soft Delete Item
+      operationId: SoftDeleteItem
+      summary: Soft-delete item (ADMIN/SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Item soft-deleted successfully
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '404':
+          description: Item not found or access denied
+
+  /workspaces/{wid}/items/{id}/activities:
+    get:
+      summary: Item Activities
+      operationId: GetItemActivities
+      summary: Activity timeline (accessible member / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                          description: Event ID
+                        actor_user_id:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        workspace_id:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        entity_type:
+                          type: string
+                        entity_id:
+                          type: string
+                          format: uuid
+                          nullable: true
+                        action:
+                          type: string
+                        details:
+                          type: object
+                          description: Safe field diffs as JSONB
+                        request_id:
+                          type: string
+                        created_at:
+                          type: string
+                          format: date-time
+        '401':
+          description: Authentication required
+        '404':
+          description: Item not found or access denied
+
+  /workspaces/{wid}/items/{id}/attachments:
+    post:
+      summary: Upload Attachment
+      operationId: UploadAttachment
+      summary: Multipart image image (ADMIN/MEMBER/SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                image:
+                  type: string
+                  format: binary
+                  description: File gambar (JPEG/PNG/WebP, max 5 MiB, max 4096x4096)
+      responses:
+        '201':
+          description: Attachment uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      workspace_id:
+                        type: string
+                        format: uuid
+                      item_id:
+                        type: string
+                        format: uuid
+                      uploader_id:
+                        type: string
+                        format: uuid
+                      original_filename:
+                        type: string
+                      mime_type:
+                        type: string
+                      byte_size:
+                        type: integer
+                      width:
+                        type: integer
+                      height:
+                        type: integer
+                      created_at:
+                        type: string
+                        format: date-time
+        '400':
+          description: Validation error - invalid file, magic bytes, size, or dimension
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '409':
+          description: Attachment limit exceeded - maximum 5 attachments per item
+
+    delete:
+      summary: Delete Attachment
+      operationId: DeleteAttachment
+      summary: Delete image metadata / blob cleanup (ADMIN/MEMBER/SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+        - name: aid
+          in: path
+          required: true
+          description: Attachment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Attachment deleted successfully
+        '400':
+          description: Validation error
+        '401':
+          description: Authentication required
+        '403':
+          description: Forbidden - insufficient workspace permissions
+        '404':
+          description: Attachment not found
+
+    content:
+      summary: Get Image Content
+      operationId: GetAttachmentContent
+      summary: Authorized image bytes (accessible member / SA)
+      parameters:
+        - name: wid
+          in: path
+          required: true
+          description: Workspace UUID
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          description: Item UUID
+          schema:
+            type: string
+            format: uuid
+        - name: aid
+          in: path
+          required: true
+          description: Attachment UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Image binary content
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+          headers:
+            X-Content-Type-Options:
+              type: string
+              description: nosniff
+            Cache-Control:
+              type: string
+              description: private, no-store
+        '404':
+          description: Image not found or access denied
+
+  /health/live:
+    get:
+      summary: Health Live
+      operationId: Live
+      summary: Process alive, no DB required
+      responses:
+        '200':
+          description: OK
+
+  /health/ready:
+    get:
+      summary: Health Ready
+      operationId: Ready
+      summary: PostgreSQL reachable, migrated schema, and at least one active Super Admin exist
+      responses:
+        '200':
+          description: Ready
+        '503':
+          description: Service not ready - DB connection failed, migrations not applied, or no active Super Admin
+
+models:
+  ErrorPayload:
+    type: object
+    properties:
+      code:
+        type: string
+        description: Error code (e.g., VERSION_CONFLICT, RATE_LIMIT_EXCEEDED, etc.)
+      message:
+        type: string
+        description: Human-readable error message
+      request_id:
+        type: string
+        description: Opacity request ID for tracing
+  ErrorResponse:
+    type: object
+    properties:
+      error:
+        $ref: '#/components/schemas ErrorPayload'
+  SuccessEnvelope:
+    type: object
+    properties:
+      data:
+        type: object
+        description: Response data payload
+  ItemSummary:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      type:
+        type: string
+        enum: [TASK, BUG]
+      title:
+        type: string
+      status:
+        type: string
+      priority:
+        type: string
+  HealthReadyResponse:
+    type: object
+    properties:
+      data:
+        type: object
+        properties:
+          database:
+            type: boolean
+            description: PostgreSQL reachable
+          super_admin_exists:
+            type: boolean
+            description: At least one active Super Admin exists
+  LoginSuccess:
+    type: object
+    properties:
+      data:
+        type: object
+        properties:
+          user:
+            type: object
+            properties:
+              id:
+                type: string
+                format: uuid
+              email:
+                type: string
+              name:
+                type: string
+              global_role:
+                type: string
+              is_active:
+                type: boolean
+              must_change_password:
+                type: boolean
+  UserSummary:
+    type: object
+    properties:
+      id:
+        type: string
+        format: uuid
+      email:
+        type: string
+      name:
+        type: string
+      global_role:
+        type: string
+      is_active:
+        type: boolean
+
+components:
+  security:
+    - BearerAuth: []
+  schemas:
+    ErrorPayload:
+      type: object
+      properties:
+        code:
+          type: string
+          description: Error code (e.g., VERSION_CONFLICT, RATE_LIMIT_EXCEEDED, INVALID_CREDENTIALS, etc.)
+        message:
+          type: string
+          description: Human-readable error message
+        request_id:
+          type: string
+          description: Opacity request ID for tracing (should not contain sensitive data)
+    required:
+      - code
+      - message
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          $ref: '#/components/schemas ErrorPayload'
+
+    SuccessEnvelope:
+      type: object
+      properties:
+        data:
+          type: object
+          description: Response data payload
+          example:
+            id: "string"
+            title: "Sample title"
+
+    ItemSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [TASK, BUG]
+        title:
+          type: string
+        status:
+          type: string
+        priority:
+          type: string
+
+    HealthReadyResponse:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            database:
+              type: boolean
+              description: PostgreSQL reachable and healthy
+            super_admin_exists:
+              type: boolean
+              description: At least one active Super Admin exists after bootstrap
+
+    UserSession:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        global_role:
+          type: string
+        is_active:
+          type: boolean
+        must_change_password:
+          type: boolean
+
+    LoginSuccess:
+      type: object
+      description: Success response from login
+      properties:
+        data:
+          type: object
+          properties:
+            user:
+              type: object
+              properties:
+                id:
+                  type: string
+                  format: uuid
+                email:
+                  type: string
+                name:
+                  type: string
+                global_role:
+                  type: string
+                is_active:
+                  type: boolean
+                must_change_password:
+                  type: boolean
+
+    UserSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        name:
+          type: string
+        global_role:
+          type: string
+        is_active:
+            type: boolean

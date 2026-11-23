@@ -1,0 +1,140 @@
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.toolbar .form-control {
+  flex: 1;
+  min-width: 220px;
+}
+
+.toolbar .nowrap {
+  white-space: nowrap;
+}
+
+/*
+ * Daftar workspace memakai baris, bukan grid kartu.
+ * Alasan: dataset workspace bisa mencapai ribuan entri dengan nama mirip.
+ * Baris dengan posisi aksi tetap di tepi kanan lebih cepat dipindai, dan
+ * pemisah rambut 1px mengikuti motif "Garis rambut 1px" di DESIGN.md tanpa
+ * kotak-kotak yang saling bersaing.
+ */
+.workspace-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.workspace-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3) var(--space-5);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--line);
+  transition: background 0.14s ease;
+}
+
+.workspace-row:first-child {
+  border-top: none;
+}
+
+.workspace-row:hover {
+  background: var(--surface-2);
+}
+
+.workspace-row--archived {
+  background: var(--surface-2);
+}
+
+.workspace-row--archived:hover {
+  background: var(--surface-3);
+}
+
+.workspace-row-main {
+  min-width: 0;
+}
+
+.workspace-row-head {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.workspace-name {
+  font-size: 1rem;
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.workspace-slug {
+  color: var(--ink-3);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xs);
+  padding: 2px 6px;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+.workspace-description {
+  font-size: 0.8125rem;
+  color: var(--ink-3);
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-row-side {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  justify-self: end;
+}
+
+.workspace-actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+/* Di bawah 720px baris jadi satu kolom: identitas di atas, aksi di bawah. */
+@media (max-width: 720px) {
+  .workspace-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+    padding: var(--space-4);
+  }
+
+  .workspace-row-side {
+    justify-self: stretch;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .workspace-description {
+    white-space: normal;
+  }
+}
+
+@media (max-width: 560px) {
+  .workspace-row-side {
+    flex-wrap: wrap;
+  }
+
+  .workspace-actions {
+    width: 100%;
+  }
+
+  .workspace-actions .btn {
+    flex: 1;
+  }
+}

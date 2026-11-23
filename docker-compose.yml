@@ -1,0 +1,120 @@
+# Task & Bug Tracker - full stack (PostgreSQL + Go API + Angular/Nginx)
+#
+# Cara pakai:
+#   docker compose up -d --build
+# lalu buka http://localhost
+#
+# Variabel boleh diset di environment atau file .env (lihat .env.example).
+# Semua nilai di bawah punya default, jadi `docker compose up` langsung jalan.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: task_bug_tracker_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-task_bug_tracker}
+      POSTGRES_USER: ${DB_USER:-tracker_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-SecurePassword123!}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-tracker_user} -d ${DB_NAME:-task_bug_tracker}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - app_network
+
+  migrate:
+    build:
+      context: ./backend
+    container_name: task_bug_tracker_migrate
+    restart: "no"
+    command: ["/app/migrate"]
+    environment:
+      DATABASE_URL: postgres://${DB_USER:-tracker_user}:${DB_PASSWORD:-SecurePassword123!}@${DB_HOST:-db}:5432/${DB_NAME:-task_bug_tracker}?sslmode=disable
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app_network
+
+  bootstrap:
+    build:
+      context: ./backend
+    container_name: task_bug_tracker_bootstrap
+    restart: "no"
+    command: ["/app/bootstrap"]
+    environment:
+      # bootstrap memakai SUPERADMIN_PASSWORD_FILE wajib di APP_ENV=production,
+      # jadi service ini memakai development agar cukup lewat env var.
+      APP_ENV: development
+      DATABASE_URL: postgres://${DB_USER:-tracker_user}:${DB_PASSWORD:-SecurePassword123!}@${DB_HOST:-db}:5432/${DB_NAME:-task_bug_tracker}?sslmode=disable
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@example.com}
+      SUPERADMIN_NAME: ${SUPERADMIN_NAME:-System Administrator}
+      SUPERADMIN_PASSWORD: ${SUPERADMIN_PASSWORD:-SuperAdminPassword123!}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks:
+      - app_network
+
+  api:
+    # Tag versi diambil dari file VERSION (bisa dioverride lewat env APP_VERSION).
+    # Untuk GHCR: API_IMAGE=ghcr.io/<owner>/<repo>/api
+    image: ${API_IMAGE:-task-bug-tracker/api}:${APP_VERSION:-1.0.0}
+    build:
+      context: ./backend
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+    container_name: task_bug_tracker_api
+    restart: unless-stopped
+    environment:
+      APP_ENV: production
+      HTTP_ADDR: ":8080"
+      DATABASE_URL: postgres://${DB_USER:-tracker_user}:${DB_PASSWORD:-SecurePassword123!}@${DB_HOST:-db}:5432/${DB_NAME:-task_bug_tracker}?sslmode=disable
+      UPLOAD_DIR: /var/lib/task-bug-tracker/attachments
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-5242880}
+      CSRF_HMAC_SECRET: ${CSRF_HMAC_SECRET:-change-me-in-production-please}
+      SUPERADMIN_EMAIL: ${SUPERADMIN_EMAIL:-admin@example.com}
+      SUPERADMIN_NAME: ${SUPERADMIN_NAME:-System Administrator}
+    volumes:
+      - attachments_data:/var/lib/task-bug-tracker/attachments
+    depends_on:
+      db:
+        condition: service_healthy
+      bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    networks:
+      - app_network
+
+  web:
+    # Untuk GHCR: WEB_IMAGE=ghcr.io/<owner>/<repo>/web
+    image: ${WEB_IMAGE:-task-bug-tracker/web}:${APP_VERSION:-1.0.0}
+    build:
+      context: ./frontend
+      args:
+        APP_VERSION: ${APP_VERSION:-1.0.0}
+    container_name: task_bug_tracker_web
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-80}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+  attachments_data:
+
+networks:
+  app_network:
+    driver: bridge

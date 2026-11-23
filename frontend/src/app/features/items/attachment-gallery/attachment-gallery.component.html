@@ -1,0 +1,136 @@
+<div class="attachment-section">
+  <div class="attachment-header">
+    <h3 class="attachment-title">Lampiran gambar ({{ attachments.length }}/5)</h3>
+    @if (maxReached) {
+      <span class="chip chip--warn">Batas 5 gambar</span>
+    }
+  </div>
+
+  @if (canUpload && !maxReached) {
+    <div
+      class="upload-box"
+      [class.drag-over]="dragOver()"
+      (dragover)="onDragOver($event)"
+      (dragleave)="onDragLeave($event)"
+      (drop)="onDrop($event)"
+    >
+      <label class="dropzone-label">
+        <input
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          (change)="onFileSelected($event)"
+          class="file-input"
+          [disabled]="uploadProgress() !== null"
+          aria-label="Pilih file gambar"
+        />
+        <span class="upload-icon"><app-icon name="upload" [size]="24" /></span>
+        <span class="upload-text">
+          Klik atau seret file gambar ke sini (JPEG, PNG, WebP maks 5 MiB)
+        </span>
+      </label>
+
+      @if (uploadProgress() !== null) {
+        <div class="progress-container">
+          <div class="progress-bar" [style.width.%]="uploadProgress()"></div>
+          <span class="progress-text">Mengunggah... {{ uploadProgress() }}%</span>
+        </div>
+      }
+
+      @if (uploadError(); as message) {
+        <div class="upload-error" role="alert">
+          <span class="grow">{{ message }}</span>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="retryUpload()">
+            Coba lagi
+          </button>
+        </div>
+      }
+    </div>
+  }
+
+  @if (attachments.length === 0 && (!canUpload || maxReached)) {
+    <p class="empty-attachments">Belum ada lampiran gambar pada item ini.</p>
+  }
+
+  @if (attachments.length > 0) {
+    <div class="gallery-grid">
+      @for (item of attachments; track item.id) {
+        <figure class="gallery-item">
+          <button
+            type="button"
+            class="thumb-btn"
+            (click)="openLightbox(item)"
+            [attr.aria-label]="'Perbesar ' + item.original_filename"
+          >
+            <img
+              class="thumbnail-img"
+              [src]="getContentUrl(item.id)"
+              [alt]="item.original_filename"
+              width="320"
+              height="320"
+              loading="lazy"
+            />
+          </button>
+          <figcaption class="item-caption">
+            <span class="filename-text" [title]="item.original_filename">
+              {{ item.original_filename }}
+            </span>
+            @if (canDelete) {
+              <button
+                type="button"
+                class="btn-delete"
+                (click)="deleteAttachment(item.id)"
+                [disabled]="deletingId() === item.id"
+                [attr.aria-label]="'Hapus ' + item.original_filename"
+              >
+                <app-icon name="trash" [size]="15" />
+              </button>
+            }
+          </figcaption>
+        </figure>
+      }
+    </div>
+  }
+
+  @if (lightboxImage(); as image) {
+    <div
+      class="lightbox-overlay"
+      (click)="closeLightbox()"
+      (keydown)="onLightboxKeydown($event)"
+      tabindex="-1"
+      role="dialog"
+      aria-modal="true"
+      [attr.aria-label]="image.original_filename"
+    >
+      <div class="lightbox-content" (click)="$event.stopPropagation()">
+        <button
+          type="button"
+          class="lightbox-close"
+          aria-label="Tutup pratinjau"
+          (click)="closeLightbox()"
+        >
+          <app-icon name="x" [size]="22" />
+        </button>
+        <img
+          class="lightbox-img"
+          [src]="getContentUrl(image.id)"
+          [alt]="image.original_filename"
+          [attr.width]="image.width"
+          [attr.height]="image.height"
+        />
+        <div class="lightbox-footer">
+          <span class="mono">{{ image.original_filename }}</span>
+          <span class="mono">{{ image.width }}x{{ image.height }}px</span>
+          @if (canDelete) {
+            <button
+              type="button"
+              class="btn btn-danger btn-sm"
+              (click)="deleteAttachment(image.id)"
+            >
+              Hapus gambar
+            </button>
+          }
+        </div>
+      </div>
+    </div>
+  }
+</div>

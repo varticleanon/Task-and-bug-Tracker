@@ -1,0 +1,14 @@
+# Build artifacts & binaries lokal
+bin/
+server
+server.log
+uploads/
+
+# Git & docs
+.git
+*.md
+
+# Logs & env
+*.log
+.env
+.env.*

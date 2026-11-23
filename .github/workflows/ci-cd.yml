@@ -1,0 +1,225 @@
+name: CI/CD - Check, Security, Build, Push GHCR
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*.*.*' ]
+  pull_request:
+    branches: [ main, master ]
+
+permissions:
+  contents: read
+
+jobs:
+  # ---- 1. Code Quality Check ----
+  code-quality:
+    name: 1. Code Quality Check
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: tracker_user
+          POSTGRES_PASSWORD: tracker_password
+          POSTGRES_DB: task_bug_tracker
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go (version from go.mod, with module cache)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: backend/go.mod
+          cache-dependency-path: backend/go.sum
+
+      - name: Download Go Dependencies
+        working-directory: ./backend
+        run: go mod download
+
+      - name: Go Vet
+        working-directory: ./backend
+        run: go vet ./...
+
+      - name: Go Unit / Integration Tests
+        working-directory: ./backend
+        env:
+          DATABASE_URL: postgres://tracker_user:tracker_password@localhost:5432/task_bug_tracker?sslmode=disable
+        run: go test -count=1 ./...
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Cache Bun dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('frontend/bun.lock') }}
+          restore-keys: ${{ runner.os }}-bun-
+
+      - name: Install Frontend Dependencies (frozen lockfile)
+        working-directory: ./frontend
+        run: bun install --frozen-lockfile
+
+      # Script lint/typecheck/test dijalankan hanya bila memang didefinisikan.
+      # Proyek ini belum punya script lint/typecheck, jadi keduanya akan diskip.
+      - name: Frontend lint (if available)
+        working-directory: ./frontend
+        continue-on-error: true
+        run: |
+          if bun -e "process.exit(require('./package.json').scripts?.lint ? 0 : 1)"; then
+            bun run lint
+          else
+            echo "Script 'lint' tidak ada - dilewati."
+          fi
+
+      - name: Frontend type-check (if available)
+        working-directory: ./frontend
+        continue-on-error: true
+        run: |
+          if bun -e "process.exit(require('./package.json').scripts?.typecheck || require('./package.json').scripts?.['type-check'] ? 0 : 1)"; then
+            bun run typecheck || bun run type-check
+          else
+            echo "Script 'typecheck' tidak ada - dilewati."
+          fi
+
+      - name: Frontend tests (if available)
+        working-directory: ./frontend
+        continue-on-error: true
+        run: |
+          if bun -e "process.exit(require('./package.json').scripts?.test ? 0 : 1)"; then
+            bun run test
+          else
+            echo "Script 'test' tidak ada - dilewati."
+          fi
+
+      - name: Angular Production Build
+        working-directory: ./frontend
+        run: bun run build
+
+  # ---- 2. Security Scan ----
+  security:
+    name: 2. Security Scan (Trivy)
+    needs: [ code-quality ]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Trivy filesystem scan (HIGH, CRITICAL)
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+  # ---- 3 & 4. Build + Versioning, lalu Push ke GHCR ----
+  build-and-push:
+    name: 3-4. Build & Push to GHCR
+    needs: [ security ]
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Resolve app version and GHCR namespace
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '[:space:]' < VERSION)"
+          NAMESPACE="$(printf '%s' "$GITHUB_REPOSITORY" | tr '[:upper:]' '[:lower:]')"
+          echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "IMAGE_NS=ghcr.io/${NAMESPACE}" >> "$GITHUB_ENV"
+          echo "App version: $VERSION"
+          echo "Registry namespace: ghcr.io/${NAMESPACE}"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Versi image mengikuti Git tag semver: v1.0.0 -> 1.0.0, 1.0, latest, sha
+      - name: Docker metadata - API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NS }}/api
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      - name: Docker metadata - Web
+        id: meta-web
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NS }}/web
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha
+
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: false
+          load: true
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+
+      - name: Build Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: false
+          load: true
+          build-args: APP_VERSION=${{ env.APP_VERSION }}
+          tags: ${{ steps.meta-web.outputs.tags }}
+          labels: ${{ steps.meta-web.outputs.labels }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,mode=max,scope=web
+
+      - name: Login to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push API image to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && docker push "$tag"
+          done <<< "${{ steps.meta-api.outputs.tags }}"
+
+      - name: Push Web image to GHCR
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v'))
+        run: |
+          set -euo pipefail
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && docker push "$tag"
+          done <<< "${{ steps.meta-web.outputs.tags }}"

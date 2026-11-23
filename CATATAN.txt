@@ -1,0 +1,3 @@
+SSOT.md Gk boleh di otak atik
+Pake cli2ckup untuk task
+Bagi tugas siapa ngerjain Backend, dan siapa ngerjain Frontend.

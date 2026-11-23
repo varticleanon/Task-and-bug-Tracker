@@ -1,0 +1,15 @@
+/*
+ * Nama anggota dan badge "Anda" dibungkus di dalam sel, bukan memakai
+ * display:flex pada <td> itu sendiri.
+ *
+ * Alasannya: display:flex pada <td> mengubah sel menjadi blok, sehingga sel
+ * itu lepas dari struktur baris tabel. Tinggi baris lalu dihitung dari isi
+ * tiap sel secara terpisah, dan garis bawah antar kolom tidak lagi sejajar
+ * pada baris yang memuat badge.
+ */
+.cell-primary-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

@@ -1,0 +1,233 @@
+<div class="page">
+  <div class="page-header">
+    <div class="grow">
+      <h1>Daftar Task &amp; Bug</h1>
+      <p class="page-subtitle">Semua pekerjaan dalam workspace ini</p>
+    </div>
+    @if (canWrite() && workspaceId()) {
+      <a [routerLink]="['/app/w', workspaceId(), 'items', 'new']" class="btn btn-primary">
+        <app-icon name="plus" [size]="16" />
+        Tambah item
+      </a>
+    }
+  </div>
+
+  <section class="filters" aria-label="Pencarian dan filter">
+    <div class="filters-search">
+      <label class="sr-only" for="item-search">Cari item</label>
+      <input
+        id="item-search"
+        type="search"
+        class="form-control"
+        placeholder="Cari judul atau deskripsi..."
+        [ngModel]="searchQuery()"
+        (ngModelChange)="onSearchInput($event)"
+      />
+    </div>
+
+    <div class="filters-grid">
+      <div>
+        <label class="sr-only" for="filter-type">Filter tipe</label>
+        <select
+          id="filter-type"
+          class="form-control"
+          [ngModel]="filterType()"
+          (ngModelChange)="filterType.set($event); onFilterChange()"
+        >
+          <option value="">Semua tipe</option>
+          <option value="TASK">Task</option>
+          <option value="BUG">Bug</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="sr-only" for="filter-status">Filter status</label>
+        <select
+          id="filter-status"
+          class="form-control"
+          [ngModel]="filterStatus()"
+          (ngModelChange)="filterStatus.set($event); onFilterChange()"
+        >
+          <option value="">Semua status</option>
+          <option value="TODO">Belum mulai</option>
+          <option value="IN_PROGRESS">Dikerjakan</option>
+          <option value="IN_REVIEW">Ditinjau</option>
+          <option value="BLOCKED">Terhambat</option>
+          <option value="DONE">Selesai</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="sr-only" for="filter-priority">Filter prioritas</label>
+        <select
+          id="filter-priority"
+          class="form-control"
+          [ngModel]="filterPriority()"
+          (ngModelChange)="filterPriority.set($event); onFilterChange()"
+        >
+          <option value="">Semua prioritas</option>
+          <option value="LOW">Rendah</option>
+          <option value="MEDIUM">Sedang</option>
+          <option value="HIGH">Tinggi</option>
+          <option value="CRITICAL">Kritis</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="sr-only" for="filter-assignee">Filter penanggung jawab</label>
+        <select
+          id="filter-assignee"
+          class="form-control"
+          [ngModel]="filterAssigneeId()"
+          (ngModelChange)="filterAssigneeId.set($event); onFilterChange()"
+        >
+          <option value="">Semua PIC</option>
+          @for (member of members(); track member.user_id) {
+            <option [value]="member.user_id">{{ member.name }}</option>
+          }
+        </select>
+      </div>
+
+      <label class="checkbox-label">
+        <input
+          type="checkbox"
+          [ngModel]="filterUnassigned()"
+          (ngModelChange)="filterUnassigned.set($event); onFilterChange()"
+        />
+        Belum ditugaskan
+      </label>
+
+      <button type="button" class="btn btn-quiet btn-sm" (click)="resetFilters()">
+        Reset filter
+      </button>
+    </div>
+
+    @if (filterDueBefore()) {
+      <div class="active-filter">
+        <span class="chip chip--warn">
+          <span class="chip-icon"><app-icon name="clock" [size]="13" [strokeWidth]="1.9" /></span>
+          Jatuh tempo sebelum {{ filterDueBefore() }}
+        </span>
+        <button type="button" class="btn btn-quiet btn-sm" (click)="resetFilters()">Hapus</button>
+      </div>
+    }
+  </section>
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat daftar item">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else if (error()) {
+    <app-error-state [message]="error() ?? ''" (retryClicked)="fetchItems()" />
+  } @else if (items().length === 0) {
+    <app-empty-state
+      icon="search"
+      title="Tidak ada item ditemukan"
+      description="Coba atur ulang filter pencarian Anda atau buat item baru."
+      actionLabel="Reset filter"
+      (actionClicked)="resetFilters()"
+    />
+  } @else {
+    <div class="table-wrap">
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Tipe</th>
+              <th scope="col">Judul</th>
+              <th scope="col">Status</th>
+              <th scope="col">Prioritas</th>
+              <th scope="col">PIC</th>
+              <th scope="col">Tenggat</th>
+              <th scope="col">Diperbarui</th>
+              <th scope="col" class="text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of items(); track item.id) {
+              <tr>
+                <td data-label="Tipe">
+                  <app-chip kind="type" [value]="item.type" />
+                </td>
+                <td class="cell-primary" data-label="">
+                  <a [routerLink]="['/app/w', workspaceId(), 'items', item.id]" class="item-link">
+                    {{ item.title }}
+                  </a>
+                </td>
+                <td data-label="Status">
+                  <app-chip kind="status" [value]="item.status" />
+                </td>
+                <td data-label="Prioritas">
+                  <app-chip kind="priority" [value]="item.priority" />
+                </td>
+                <td data-label="PIC">{{ getAssigneeName(item.assignee_id) }}</td>
+                <td data-label="Tenggat">
+                  @if (item.due_date) {
+                    <span [class.text-danger]="isOverdue(item)">{{ item.due_date }}</span>
+                  } @else {
+                    <span class="text-muted">-</span>
+                  }
+                </td>
+                <td data-label="Diperbarui" class="cell-muted">
+                  {{ item.updated_at | date: 'dd MMM yyyy HH:mm' }}
+                </td>
+                <td class="cell-actions" data-label="">
+                  <div class="table-actions">
+                    <a
+                      [routerLink]="['/app/w', workspaceId(), 'items', item.id]"
+                      class="btn btn-secondary btn-sm"
+                    >
+                      Detail
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="pagination">
+        <div class="pagination-info">
+          Menampilkan {{ firstShown() }} - {{ lastShown() }} dari {{ total() }} item
+        </div>
+        <div class="pagination-controls">
+          <label class="page-size">
+            <span>Per halaman</span>
+            <select
+              class="form-control page-size-select"
+              [ngModel]="pageSize()"
+              (ngModelChange)="onPageSizeChange($event)"
+              aria-label="Jumlah item per halaman"
+            >
+              <option [value]="10">10</option>
+              <option [value]="20">20</option>
+              <option [value]="50">50</option>
+              <option [value]="100">100</option>
+            </select>
+          </label>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="page() <= 1"
+            (click)="goToPage(page() - 1)"
+          >
+            Sebelumnya
+          </button>
+          <span class="pagination-page">Halaman {{ page() }} dari {{ totalPages() || 1 }}</span>
+          <button
+            type="button"
+            class="btn btn-secondary btn-sm"
+            [disabled]="page() >= totalPages()"
+            (click)="goToPage(page() + 1)"
+          >
+            Berikutnya
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+</div>

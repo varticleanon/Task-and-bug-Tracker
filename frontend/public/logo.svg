@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 554 554" role="img" aria-labelledby="t">
+  <title id="t">Task &amp; Bug Tracker</title>
+
+  <!-- Target: dua busana C yang terbuka di kanan, digambar sebagai stroke -->
+  <path d="M 483.3 313.4 A 209.5 209.5 0 1 1 471.2 198.5"
+        fill="none" stroke="#0D34DB" stroke-width="75"/>
+  <path d="M 365.8 328.3 A 102.5 102.5 0 1 1 367.5 228.9"
+        fill="none" stroke="#0D34DB" stroke-width="35"/>
+  <circle cx="277" cy="277" r="46" fill="none" stroke="#0D34DB" stroke-width="28"/>
+
+  <!-- Anak panah kuning yang menembus target -->
+  <rect x="266" y="261" width="212" height="36" fill="#E1C340"/>
+  <path d="M 440 232 L 510 232 L 478 280 L 510 320 L 440 320 L 466 280 Z"
+        fill="#E1C340"/>
+
+  <!-- Bintang empat sudut di pusat -->
+  <path d="M 280 215 L 288 266 L 340 280 L 288 288 L 280 340 L 272 288 L 220 280 L 272 266 Z"
+        fill="#FFDE59"/>
+  <path d="M 280 250 L 284 273 L 305 280 L 284 287 L 280 310 L 276 287 L 255 280 L 276 273 Z"
+        fill="#FF5A36"/>
+</svg>

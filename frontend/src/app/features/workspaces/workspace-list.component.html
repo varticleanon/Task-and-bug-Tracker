@@ -1,0 +1,215 @@
+<div class="page">
+  <div class="page-header">
+    <div class="grow">
+      <h1>Pilih workspace</h1>
+      <p class="page-subtitle">Setiap workspace punya data dan anggota sendiri</p>
+    </div>
+    @if (canManage()) {
+      <button type="button" class="btn btn-primary" (click)="openCreateModal()">
+        <app-icon name="plus" [size]="16" />
+        Buat workspace
+      </button>
+    }
+  </div>
+
+  @if (errorMessage(); as message) {
+    <app-error-state [message]="message" (retryClicked)="loadWorkspaces()" />
+  }
+
+  @if (loading()) {
+    <div class="skeleton-rows" aria-busy="true" aria-label="Memuat workspace">
+      <div class="skeleton skeleton-row"></div>
+      <div class="skeleton skeleton-row"></div>
+    </div>
+  } @else {
+    <div class="toolbar">
+      <label class="sr-only" for="ws-search">Cari workspace</label>
+      <input
+        id="ws-search"
+        type="search"
+        class="form-control"
+        placeholder="Cari nama atau slug workspace"
+        autocomplete="off"
+        [value]="search()"
+        (input)="onSearchChange($any($event.target).value)"
+      />
+      <span class="text-sm text-muted nowrap">
+        {{ filtered().length }} workspace
+      </span>
+    </div>
+
+    @if (visible().length === 0) {
+      <app-empty-state
+        icon="folder"
+        [title]="search() ? 'Workspace tidak ditemukan' : 'Belum ada workspace'"
+        [description]="
+          search()
+            ? 'Tidak ada workspace yang cocok dengan kata kunci pencarian.'
+            : canManage()
+              ? 'Buat workspace pertama untuk mulai mengelola task dan bug.'
+              : 'Anda belum menjadi anggota workspace manapun. Hubungi Super Admin untuk menambahkan Anda.'
+        "
+        [actionLabel]="search() ? null : canManage() ? 'Buat workspace pertama' : null"
+        (actionClicked)="openCreateModal()"
+      />
+    } @else {
+      <ul class="workspace-list">
+        @for (ws of visible(); track ws.id) {
+          <li class="workspace-row" [class.workspace-row--archived]="ws.archived_at">
+            <div class="workspace-row-main">
+              <div class="workspace-row-head">
+                <h2 class="workspace-name">{{ ws.name }}</h2>
+                <span class="workspace-slug mono">{{ ws.slug }}</span>
+              </div>
+              <p class="workspace-description">
+                {{ ws.description || 'Tidak ada deskripsi workspace.' }}
+              </p>
+            </div>
+
+            <div class="workspace-row-side">
+              <app-chip kind="state" [value]="ws.archived_at ? 'ARCHIVED' : 'ACTIVE'" />
+
+              <div class="workspace-actions">
+                <button
+                  type="button"
+                  class="btn btn-primary btn-sm"
+                  [disabled]="!!ws.archived_at && !canManage()"
+                  [title]="ws.archived_at && !canManage() ? 'Workspace terarsip hanya bisa dibaca' : ''"
+                  (click)="selectWorkspace(ws)"
+                >
+                  Buka
+                </button>
+                @if (canManage()) {
+                  @if (!ws.archived_at) {
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="confirmArchive(ws)"
+                    >
+                      Arsip
+                    </button>
+                  } @else {
+                    <button
+                      type="button"
+                      class="btn btn-secondary btn-sm"
+                      (click)="restoreWorkspace(ws)"
+                    >
+                      Pulihkan
+                    </button>
+                  }
+                }
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+
+      @if (totalPages() > 1) {
+        <nav class="pagination" aria-label="Paginasi workspace">
+          <span class="pagination-info">
+            Menampilkan {{ rangeStart() }}-{{ rangeEnd() }} dari {{ filtered().length }} workspace
+          </span>
+          <div class="pagination-controls">
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="page() <= 1"
+              (click)="prevPage()"
+            >
+              Sebelumnya
+            </button>
+            <span class="pagination-page">Halaman {{ page() }} / {{ totalPages() }}</span>
+            <button
+              type="button"
+              class="btn btn-secondary btn-sm"
+              [disabled]="page() >= totalPages()"
+              (click)="nextPage()"
+            >
+              Berikutnya
+            </button>
+          </div>
+        </nav>
+      }
+    }
+  }
+
+  @if (showCreateModal()) {
+    <app-dialog title="Buat workspace baru" (closed)="showCreateModal.set(false)">
+      <div class="form-group">
+        <label class="form-label" for="ws-name">Nama workspace</label>
+        <input
+          id="ws-name"
+          type="text"
+          class="form-control"
+          [(ngModel)]="newWsName"
+          (input)="autoSlug()"
+          placeholder="Backend Team"
+          maxlength="100"
+        />
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="ws-slug">Slug URL</label>
+        <input
+          id="ws-slug"
+          type="text"
+          class="form-control mono"
+          [(ngModel)]="newWsSlug"
+          placeholder="backend-team"
+          maxlength="50"
+        />
+        <span class="form-hint">Huruf kecil, angka, dan tanda hubung.</span>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="ws-description">Deskripsi</label>
+        <textarea
+          id="ws-description"
+          class="form-control"
+          [(ngModel)]="newWsDescription"
+          rows="3"
+          placeholder="Deskripsi singkat workspace"
+          maxlength="500"
+        ></textarea>
+      </div>
+
+      <div dialogFooter>
+        <button
+          type="button"
+          class="btn btn-secondary"
+          (click)="showCreateModal.set(false)"
+        >
+          Batal
+        </button>
+        <button
+          type="button"
+          class="btn btn-primary"
+          (click)="submitCreateWorkspace()"
+          [disabled]="submitting()"
+        >
+          @if (submitting()) {
+            <span class="spinner spinner-sm" aria-hidden="true"></span>
+          }
+          Simpan workspace
+        </button>
+      </div>
+    </app-dialog>
+  }
+
+  @if (pendingArchive(); as target) {
+    <app-dialog title="Arsipkan workspace" (closed)="pendingArchive.set(null)">
+      <p>
+        Mengarsipkan <strong>{{ target.name }}</strong> menjadikan seluruh data di dalamnya
+        hanya bisa dibaca sampai workspace dipulihkan.
+      </p>
+      <div dialogFooter>
+        <button type="button" class="btn btn-secondary" (click)="pendingArchive.set(null)">
+          Batal
+        </button>
+        <button type="button" class="btn btn-danger" (click)="executeArchive()">
+          Arsipkan
+        </button>
+      </div>
+    </app-dialog>
+  }
+</div>

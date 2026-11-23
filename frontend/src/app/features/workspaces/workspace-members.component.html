@@ -1,0 +1,204 @@
+<div class="page page--narrow">
+  @if (!workspaceId()) {
+    <div class="empty-state">
+      <app-icon name="workspace" [size]="48" />
+      <h2>Workspace tidak dipilih</h2>
+      <p>Silakan pilih workspace terlebih dahulu.</p>
+    </div>
+  } @else {
+    <div class="page-header">
+      <div class="grow">
+        <h1>Anggota workspace</h1>
+        <p class="page-subtitle">Kelola peran dan hak akses anggota workspace</p>
+      </div>
+      @if (canManage()) {
+        <button type="button" class="btn btn-primary" (click)="openAddModal()">
+          <app-icon name="plus" [size]="16" />
+          Tambah anggota
+        </button>
+      }
+    </div>
+
+    @if (errorMessage(); as message) {
+      <app-error-state [message]="message" (retryClicked)="loadMembers()" />
+    }
+
+    @if (successMessage(); as message) {
+      <div class="alert alert-success" role="status">{{ message }}</div>
+    }
+
+    @if (loading()) {
+      <div class="skeleton-rows" aria-busy="true" aria-label="Memuat anggota">
+        <div class="skeleton skeleton-row"></div>
+        <div class="skeleton skeleton-row"></div>
+      </div>
+    } @else if (members().length === 0) {
+      <app-empty-state
+        icon="users"
+        title="Belum ada anggota"
+        description="Workspace ini belum memiliki anggota. Tambahkan anggota untuk memulai kerja sama."
+        [actionLabel]="canManage() ? 'Tambah anggota' : null"
+        (actionClicked)="openAddModal()"
+      />
+    } @else {
+      <div class="table-wrap">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th scope="col">Nama</th>
+                <th scope="col">Email</th>
+                <th scope="col">Peran</th>
+                <th scope="col">Bergabung</th>
+                @if (canManage()) {
+                  <th scope="col" class="text-right">Aksi</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (member of members(); track member.user_id) {
+                <tr>
+                  <td class="cell-primary" data-label="">
+                    <div class="cell-primary-row">
+                      <span>{{ member.name }}</span>
+                      @if (isSelf(member)) {
+                        <span class="chip chip--accent">Anda</span>
+                      }
+                    </div>
+                  </td>
+                  <td data-label="Email">{{ member.email }}</td>
+                  <td data-label="Peran">
+                    <app-chip kind="role" [value]="member.role" />
+                  </td>
+                  <td data-label="Bergabung" class="cell-muted">
+                    {{ member.joined_at | date: 'dd MMM yyyy' }}
+                  </td>
+                  @if (canManage()) {
+                    <td class="cell-actions" data-label="">
+                      <div class="table-actions">
+                        <button
+                          type="button"
+                          class="btn btn-secondary btn-sm"
+                          (click)="openRoleModal(member)"
+                        >
+                          Ubah peran
+                        </button>
+                        <button
+                          type="button"
+                          class="btn btn-quiet btn-sm"
+                          (click)="confirmRemoval(member)"
+                          [disabled]="isSelf(member)"
+                        >
+                          Keluarkan
+                        </button>
+                      </div>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+
+    @if (showAddModal()) {
+      <app-dialog title="Tambah anggota workspace" (closed)="showAddModal.set(false)">
+        <p class="form-hint mb-4">
+          Masukkan alamat email pengguna terdaftar yang ingin ditambahkan.
+        </p>
+
+        <div class="form-group">
+          <label class="form-label" for="add-email">Email pengguna</label>
+          <input
+            id="add-email"
+            type="email"
+            class="form-control"
+            [(ngModel)]="addEmail"
+            placeholder="user@example.com"
+            autocomplete="off"
+          />
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="add-role">Peran</label>
+          <select id="add-role" class="form-control" [(ngModel)]="addRole">
+            <option value="MEMBER">Member</option>
+            <option value="ADMIN">Admin</option>
+            <option value="VIEWER">Viewer</option>
+          </select>
+        </div>
+
+        <div dialogFooter>
+          <button type="button" class="btn btn-secondary" (click)="showAddModal.set(false)">
+            Batal
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="submitAddMember()"
+            [disabled]="addSubmitting()"
+          >
+            @if (addSubmitting()) {
+              <span class="spinner spinner-sm" aria-hidden="true"></span>
+            }
+            Tambahkan
+          </button>
+        </div>
+      </app-dialog>
+    }
+
+    @if (selectedMember(); as member) {
+      <app-dialog
+        [title]="'Ubah peran ' + member.name"
+        (closed)="selectedMember.set(null)"
+      >
+        <div class="form-group">
+          <label class="form-label" for="edit-role">Peran</label>
+          <select id="edit-role" class="form-control" [(ngModel)]="editRole">
+            <option value="ADMIN">Admin</option>
+            <option value="MEMBER">Member</option>
+            <option value="VIEWER">Viewer</option>
+          </select>
+        </div>
+        <p class="form-hint mt-4">
+          Perubahan peran langsung berlaku pada permintaan berikutnya.
+        </p>
+
+        <div dialogFooter>
+          <button type="button" class="btn btn-secondary" (click)="selectedMember.set(null)">
+            Batal
+          </button>
+          <button
+            type="button"
+            class="btn btn-primary"
+            (click)="submitRoleChange()"
+            [disabled]="editSubmitting()"
+          >
+            @if (editSubmitting()) {
+              <span class="spinner spinner-sm" aria-hidden="true"></span>
+            }
+            Simpan peran
+          </button>
+        </div>
+      </app-dialog>
+    }
+
+    @if (pendingRemoval(); as member) {
+      <app-dialog title="Keluarkan anggota" (closed)="pendingRemoval.set(null)">
+        <p>
+          <strong>{{ member.name }}</strong> akan dikeluarkan dari workspace ini. Item yang
+          dipegangnya menjadi belum ditugaskan.
+        </p>
+        <div dialogFooter>
+          <button type="button" class="btn btn-secondary" (click)="pendingRemoval.set(null)">
+            Batal
+          </button>
+          <button type="button" class="btn btn-danger" (click)="executeRemoval()">
+            Keluarkan
+          </button>
+        </div>
+      </app-dialog>
+    }
+  }
+</div>
