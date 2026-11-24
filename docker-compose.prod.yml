@@ -59,22 +59,16 @@ services:
       dockerfile: Dockerfile
     container_name: task_bug_tracker_web
     restart: always
-    # nginx dijalankan non-root (uid 101), sehingga butuh izin bind port 80/443
-    # dan membaca private key sertifikat yang dimount read-only.
-    cap_add:
-      - NET_BIND_SERVICE
-      - DAC_READ_SEARCH
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx/ssl:/etc/nginx/ssl:ro
-      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    # Port 80/443 host dipakai Traefik Dokploy. nginx non-root tetap listen 8080
+    # di dalam container; konfigurasi sudah disalin oleh Dockerfile.
+    expose:
+      - "8080"
     depends_on:
       api:
         condition: service_healthy
     networks:
       - app_network
+      - dokploy-network
 
 volumes:
   postgres_data:
@@ -95,3 +89,5 @@ secrets:
 networks:
   app_network:
     driver: bridge
+  dokploy-network:
+    external: true
